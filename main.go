@@ -113,7 +113,7 @@ func main() {
 
 // readConfig reads configuration file written in json format, returns the Router struct
 func readConfig() Router {
-	file, e := ioutil.ReadFile("./config.json")
+	file, e := ioutil.ReadFile("./config/config.json")
 	if e != nil {
 		fmt.Printf("File error: %v\n", e)
 		os.Exit(1)
