@@ -1,0 +1,9 @@
+version: '2'
+services:
+  gateway:
+      build: ./gateway
+      image: api_gateway/gateway
+      container_name: api_gateway_dev
+      env_file: .env
+      ports:
+            - "0:8081:8081"

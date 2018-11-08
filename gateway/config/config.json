@@ -1,0 +1,21 @@
+{
+  "router": {
+    "port": "8081",
+    "Services": [
+      {
+        "ServicePrefix": "applications",
+        "TargetPath": {
+          "path": "http://sandbox.bolt-play.com:7000",
+          "auth": false
+        }
+      },
+      {
+        "ServicePrefix": "configurations",
+        "TargetPath": {
+          "path": "http://sandbox.bolt-play.com:7000",
+          "auth": true
+        }
+      }
+    ]
+  }
+}
