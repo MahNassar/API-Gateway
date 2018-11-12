@@ -1,7 +1,7 @@
 
 FROM golang:latest
 
-RUN go get github.com/dgrijalva/jwt-go
+RUN go get github.com/dgrijalva/jwt-go "github.com/utahta/go-cronowriter"
 
 COPY . /go/src/api_gateway/gateway
 

@@ -16,5 +16,6 @@ func ReadConfig() core.Router {
 	}
 	var root core.JsonRoot
 	json.Unmarshal(file, &root)
+	// init app config from .env
 	return root.Router
 }

@@ -3,19 +3,96 @@ package request
 import (
 	AppCore "api_gateway/gateway/core"
 	AppAuth "api_gateway/gateway/core/auth"
+	AppLogger "api_gateway/gateway/core/logger"
 	"net/http"
 	"fmt"
-	//"io/ioutil"
 	"strings"
+	"io/ioutil"
+	"time"
 )
 
 func HttpHandler(w http.ResponseWriter, r *http.Request, router AppCore.Router) {
 	originalPath := r.URL.Path
+	// init logger
+	logger := AppLogger.GetLogInstance()
+	logger.InitLog(originalPath)
+
+	service, _ := checkServiceExist(router, originalPath)
+
+	msg, err := AppAuth.CheckAuth(r, service.TargetPath.Auth)
+	if err != nil {
+		AppLogger.DestroyLogInstance()
+
+		AppCore.ShowError(w, err, http.StatusUnauthorized)
+	}
+	var req *http.Request
+
+	defaultForwardPath := service.TargetPath
+
+	req, err = createRequest(r, defaultForwardPath, originalPath, msg)
+	if err != nil {
+		logger.AddStep("HttpHandler", err.Error())
+		AppLogger.DestroyLogInstance()
+
+		AppCore.ShowError(w, err, http.StatusBadGateway)
+	}
+
+	fmt.Printf("forwarded to default :%v\n", req.URL)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.AddStep("HttpHandler", err.Error())
+		AppLogger.DestroyLogInstance()
+
+		AppCore.ShowError(w, err, http.StatusBadGateway)
+	}
+	//
+	defer resp.Body.Close()
+	//
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.AddStep("HttpHandler", err.Error())
+		AppLogger.DestroyLogInstance()
+		AppCore.ShowError(w, err, http.StatusBadGateway)
+	}
+
+	headerResp := strings.Join(resp.Header["Content-Type"], "")
+	w.Header().Set("Content-Type", headerResp)
+	logger.AddStep("HttpHandler : Request Send Successfully", "")
+	logger.EndTime = time.Now()
+	logger.Status = true
+
+	AppLogger.DestroyLogInstance()
+
+	w.Write([]byte(body))
+
+}
+
+func createRequest(r *http.Request, forwardPath AppCore.TargetPath, originalReq string, msg string) (*http.Request, error) {
+	logger := AppLogger.GetLogInstance()
+	newPath := forwardPath.Path + originalReq
+	req_content_type := r.Header.Get("Content-Type")
+	req, err := http.NewRequest(r.Method, newPath, r.Body)
+	if err != nil {
+		logger.AddStep("createRequest", err.Error())
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", req_content_type)
+	req.Header.Set("msg-data", msg)
+	req.Header.Set("Authorization", msg)
+
+	logger.ForwardPath = newPath
+	logger.AddStep("createRequest : Every Thing Is Good ", "")
+
+	return req, nil
+}
+
+func checkServiceExist(router AppCore.Router, originalPath string) (AppCore.Services, error) {
 	service_name_rray := strings.Split(originalPath, "/")
 	service_prefix := service_name_rray[1]
-
 	var service AppCore.Services
-
+	var err error
 	for _, v := range router.Services {
 
 		if v.ServicePrefix == service_prefix {
@@ -23,51 +100,16 @@ func HttpHandler(w http.ResponseWriter, r *http.Request, router AppCore.Router) 
 		}
 	}
 	if service.ServicePrefix == "" {
-		fmt.Printf("Service not defined\n")
-		return
+		err = fmt.Errorf("Service not Found")
 	}
-
-	var req *http.Request
-
-	defaultForwardPath := service.TargetPath
-
-	req = convertRequest(r, defaultForwardPath, originalPath)
-
-	fmt.Printf("forwarded to default :%v\n", req.URL)
-
-	msg, err := AppAuth.CheckAuth(r, service.TargetPath.Auth)
+	// add loges steps
+	errString := ""
 	if err != nil {
-		fmt.Printf("Not Auth Request")
-
-		AppCore.ShowError(w, err, http.StatusUnauthorized)
+		errString = err.Error()
 	}
-	fmt.Println(msg)
-	//client := &http.Client{}
-	//resp, err := client.Do(req)
-	//AppCore.CheckErr(err)
-	//
-	//defer resp.Body.Close()
-	//
-	//body, err := ioutil.ReadAll(resp.Body)
-	//AppCore.CheckErr(err)
-	//
-	////resp with original Content-Type
-	//headerResp := strings.Join(resp.Header["Content-Type"], "")
-	//w.Header().Set("Content-Type", headerResp)
-	//w.Write([]byte(body))
-	// fmt.Fprintf(w, string(body))
 
-}
+	logger := AppLogger.GetLogInstance()
+	logger.AddStep("checkServiceExist : Every Thing Is Good", errString)
+	return service, err
 
-func convertRequest(r *http.Request, forwardPath AppCore.TargetPath, originalReq string) *http.Request {
-	fmt.Println(forwardPath.Auth)
-	newPath := forwardPath.Path + originalReq
-	req_content_type := r.Header.Get("Content-Type")
-	req, err := http.NewRequest(r.Method, newPath, r.Body)
-	AppCore.CheckErr(err)
-	fmt.Println("Req Done process")
-	req.Header.Set("Content-Type", req_content_type)
-	req.Header.Set("msg-data", "Mahmoud Nassar Programming yra7eb bekom")
-
-	return req
 }
